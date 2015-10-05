@@ -59,6 +59,6 @@ test_leak2.out: leak_test ./libmalloc.so
 test: $(TEST_LIST)
 
 clean:
-	rm -f $(BIN_FILES) *.o *~ *.so mem_alloc_test
+	rm -f $(BIN_FILES) *.o *~ *.out *.so mem_alloc_test
 
 .PHONY: clean test

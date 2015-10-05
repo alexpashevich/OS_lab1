@@ -26,34 +26,11 @@ free_block_t first_free;
 #define ULONG(x)((long unsigned int)(x))
 #define max(x,y) (x>y?x:y)
 
-// fragmentation statistics
-#define STATISTICS_SIZE 6000 // if we measure every 10 msec then it's enough for 10 minutes
-int mem_used[STATISTICS_SIZE];
-int mem_requested[STATISTICS_SIZE];
-bool statistics_on = false;
-int stat_counter;
-int cur_used, cur_requested;
 
-void statistics_init(void) {
-    statistics_on = true;
-    memset(mem_used, 0, STATISTICS_SIZE);
-    memset(mem_requested, 0, STATISTICS_SIZE);
-    stat_counter = 0;
-}
-
-void fill_stat(void) {
-    if (statistics_on && stat_counter < STATISTICS_SIZE) {
-        mem_used[stat_counter] = cur_used;
-        mem_requested[stat_counter] = cur_requested;
-        ++stat_counter;
-    }
-}
-
-
-void memory_init(void) {
-    first_free = (free_block_t) memory;
-    first_free->size = MEMORY_SIZE;
-    first_free->next = NULL;
+void memory_init(void){
+	first_free = (free_block_t) memory;
+	first_free->size = MEMORY_SIZE;
+	first_free->next = NULL;
 }
 
 free_block_t find_first_fit(int size) {
@@ -137,21 +114,19 @@ free_block_t find_worst_fit(int size) {
     return prev_best_block;
 }
 
-char *memory_alloc(int requested_size) {
-    if (requested_size <= 0 || requested_size > MEMORY_SIZE - sizeof(busy_block_s)) {
-        print_alloc_info(NULL, requested_size);
+char *memory_alloc(int size) {
+    if (size <= 0 || size > MEMORY_SIZE - sizeof(busy_block_s))
         return NULL;
-    }
 
-    int real_size = (requested_size + sizeof(busy_block_s) >= sizeof(free_block_s) ? requested_size : sizeof(free_block_s) - sizeof(busy_block_s));
+    size = (size + sizeof(busy_block_s) >= sizeof(free_block_s) ? size : sizeof(free_block_s) - sizeof(busy_block_s));
     // because we still want to be able to free the block so the minimum amount we can allocate is sizeof(free_block_s)
     // but here we subtract sizeof(busy_block_s) as we don't count it into the size variable
 
-    free_block_t current;
-    free_block_t prev = find_first_fit(real_size);
+	free_block_t current;
+	free_block_t prev = find_first_fit(size);
     if (prev == NULL) {
         // can not allocate memory
-        print_alloc_info(NULL, real_size);
+        print_alloc_info(NULL, size);
         return NULL;
     }
 
@@ -167,16 +142,16 @@ char *memory_alloc(int requested_size) {
     int old_free_size = current->size;
     free_block_t old_free_pointer = current->next;
     busy_block_t new_busy = (busy_block_t) current;
-    new_busy->size = real_size;
+    new_busy->size = size;
 
-    if (old_free_size >= real_size + sizeof(busy_block_s) + sizeof(free_block_s)) {
+    if (old_free_size >= size + sizeof(busy_block_s) + sizeof(free_block_s)) {
         // there is enough space to put free_block_s after our busy_block
 
-        free_block_t new_free = (free_block_t) (ULONG(new_busy) + ULONG(sizeof(busy_block_s) + real_size));
+        free_block_t new_free = (free_block_t) (ULONG(new_busy) + ULONG(sizeof(busy_block_s) + size));
         // some point arithmetics to find a place for a new free_block
 
         new_free->next = old_free_pointer;
-        new_free->size = old_free_size - real_size - sizeof(busy_block_s);
+        new_free->size = old_free_size - size - sizeof(busy_block_s);
         if (prev == NULL) {
             // we allocate in the very first element of the list of free blocks
             first_free = new_free;
@@ -185,8 +160,8 @@ char *memory_alloc(int requested_size) {
         }
     } else {
         // there is NOT enough space to put free_block_s after our busy_block
-        real_size = old_free_size - sizeof(busy_block_s);
-        new_busy->size = real_size;
+        size = old_free_size - sizeof(busy_block_s);
+        new_busy->size = size;
         if (prev == NULL) {
             // we allocate in the very first element of the list of free blocks
             if (first_free->next != NULL) {
@@ -200,61 +175,30 @@ char *memory_alloc(int requested_size) {
         }
     }
 
-    char *addr = (new_busy != NULL ? (char*) ULONG(new_busy) + ULONG(sizeof(busy_block_s)) : NULL);
-    print_alloc_info(addr, real_size);
-
-    if (statistics_on) {
-        cur_requested += requested_size;
-        cur_used += real_size;
-        // but we don't consider external fragmentation here (!)
-    }
-
-    return addr;
+	char *addr = (new_busy != NULL ? (char*) ULONG(new_busy) + ULONG(sizeof(busy_block_s)) : NULL);
+    print_alloc_info(addr, size);
+	return addr;
 }
 
 void memory_free(char *p){
-    print_free_info(p);
-
-    // first check  - if p address is within our memory
-    if (p <= memory || p > memory + MEMORY_SIZE) {
-        printf("Address out of bound\n");
+	print_free_info(p);
+    if (p <= memory || p > memory + MEMORY_SIZE)
         return;
-    }
 
-    // second check - if p is an address of previously allocated chunk
-    // go through each busy block to check if p equals to any
-    bool can_free = false;
-   
-    busy_block_t check = (busy_block_t) memory; // set check to point to beginning of memory
-    free_block_t free_chunk = first_free;
-    while (ULONG(check) < ULONG(p)) {
-        if (ULONG(check) == ULONG(free_chunk)) {
-            check = (busy_block_t) (ULONG(check) + ULONG(free_chunk->size));
-            free_chunk = free_chunk->next;
-        }
-        if (ULONG(check) < ULONG(memory + MEMORY_SIZE)) {
-            if (ULONG(check + 1) == ULONG(p)) {
-                can_free = true;
-                break;
-            } else {
-                check = (busy_block_t) (ULONG(check + 1) + ULONG(check->size));
-            }    
-        }
-    }
-    if(!can_free) {
-        // we cannot free random address
-        printf("Cannot free address %lu - it was not allocated before\n", ULONG(p - memory)); 
-        return; 
-    }  
-
-    busy_block_t descriptor = (busy_block_t) (ULONG(p) - ULONG(sizeof(busy_block_s)));
+	busy_block_t descriptor = (busy_block_t) (ULONG(p) - ULONG(sizeof(busy_block_s)));
     // shift a bit to find the busy_block
 
-    int old_full_size = descriptor->size + sizeof(busy_block_s);
-    free_block_t free_descriptor = (free_block_t) descriptor;
-    free_descriptor->size = old_full_size;
-    free_block_t current, prev_free;
+	int old_full_size = descriptor->size + sizeof(busy_block_s);
+    if (old_full_size <= 0 || old_full_size > MEMORY_SIZE)
+        return;
+    // in case user provide some random stuff into the memory_free function
+    // probably then we will have some rubbish in old_full_size variable
 
+	free_block_t free_descriptor = (free_block_t) descriptor;
+    free_descriptor->size = old_full_size;
+
+    free_block_t current;
+    free_block_t prev_free;
     if (free_descriptor < first_free || first_free == NULL) {
         // our block is located before the first_free block 
         // or first_free does not exist in the moment (all the memory is occupied)
@@ -330,11 +274,8 @@ void memory_free(char *p){
         }
     }
 
-    print_free_blocks();
 
-    if (statistics_on) {
-        // TODO: add smth here
-    }
+    print_free_blocks();
 }
 
 
@@ -353,7 +294,7 @@ void print_free_info(char *addr){
 void print_alloc_info(char *addr, int size){
   if(addr){
     fprintf(stderr, "ALLOC at : %lu (%d byte(s))\n", 
-        ULONG(addr - memory), size);
+	    ULONG(addr - memory), size);
   }
   else{
     fprintf(stderr, "Warning, system is out of memory\n"); 

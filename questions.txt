@@ -1,0 +1,16 @@
+
+Question III.1:
+	Keeping list of free blocks is enough to know which blocks are occupied. Storing information about size of free list makes it possible to calculate pointer to occupied blocks. 
+	busy_block = free_block + free_block->size
+
+Question III.2
+	The user must not be able to manipulate any address. He should only be able to set a size of memory he wants to allocate and if there is enough memory he should be given a pointer to allocated memory. Working on bare memory addresses should not be allowed.
+
+Question III.3
+	When a block is allocated, allocater saves memory chunk of size that equals -> user's size + size of busy_block structure. User should get address of free memory which can be used without any harm.  
+
+Question III.4
+	To free a block of memory, the address given to user during allocation should be used. Then, we substract size of busy_block and we place there new free chunk. To reintegrate the zone in the list of free block we need to check if previous and next free blocks to our new free block are adjascent. If so we can merge them.
+
+Question III.5
+	During allocation we need to check if new free block, which is the rest of previous free block, is big enough to store information about itself - it need to store free_block structure. If memory size is 512 bytes and we allocate 500 bytes, what's left is 12 bytes big chunk which is too small to store free_block stucture which has 16 bytes. To deal with that problem we can check everytime we allocate new chunk of memory if the rest is of free_block is big enough.
