@@ -1,0 +1,39 @@
+ALLOC at : 4 (20 byte(s))
+ALLOC at : 28 (30 byte(s))
+ALLOC at : 62 (40 byte(s))
+ALLOC at : 106 (60 byte(s))
+ALLOC at : 170 (100 byte(s))
+Begin of free block list :
+Free block at address 270, size 242
+FREE  at : 28 
+Begin of free block list :
+Free block at address 24, size 34
+Free block at address 270, size 242
+FREE  at : 106 
+Begin of free block list :
+Free block at address 24, size 34
+Free block at address 102, size 64
+Free block at address 270, size 242
+Begin of free block list :
+Free block at address 24, size 34
+Free block at address 102, size 64
+Free block at address 270, size 242
+FREE  at : 62  
+Begin of free block list :
+Free block at address 24, size 142
+Free block at address 270, size 242
+Begin of free block list :
+Free block at address 24, size 142
+Free block at address 270, size 242
+FREE  at : 4 
+Begin of free block list :
+Free block at address 0, size 166
+Free block at address 270, size 242
+Begin of free block list :
+Free block at address 0, size 166
+Free block at address 270, size 242
+FREE  at : 170 
+Begin of free block list :
+Free block at address 0, size 512
+Begin of free block list :
+Free block at address 0, size 512
