@@ -1,0 +1,23 @@
+FREE  at : 3 
+Cannot free address 3 - it was not allocated before
+FREE  at : 0 
+Address out of bound
+FREE  at : 513 
+Address out of bound
+FREE  at : 512 
+Cannot free address 512 - it was not allocated before
+ALLOC at : 4 (12 byte(s))
+ALLOC at : 20 (25 byte(s))
+FREE  at : 56 
+Cannot free address 56 - it was not allocated before
+FREE  at : 4 
+Begin of free block list :
+Free block at address 0, size 16
+Free block at address 45, size 467
+FREE  at : 4 
+Cannot free address 4 - it was not allocated before
+FREE  at : 20 
+Begin of free block list :
+Free block at address 0, size 512
+FREE  at : 20 
+Cannot free address 20 - it was not allocated before

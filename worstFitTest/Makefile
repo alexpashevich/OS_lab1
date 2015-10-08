@@ -31,7 +31,7 @@ libmalloc.so:libmalloc.o
 	$(CC)  -shared -Wl,-soname,$@ $< -o $@
 
 test_ls:libmalloc.so
-	LD_PRELOAD=./libmalloc.so ls
+	LD_PRELOAD=./libmalloc.so dmesg 
 	LD_PRELOAD=""
 
 leak_test: leak_test.c libmalloc.o

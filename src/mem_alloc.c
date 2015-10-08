@@ -148,7 +148,7 @@ char *memory_alloc(int requested_size) {
     // but here we subtract sizeof(busy_block_s) as we don't count it into the size variable
 
     free_block_t current;
-    free_block_t prev = find_best_fit(real_size);
+    free_block_t prev = find_first_fit(real_size);
     if (prev == NULL) {
         // can not allocate memory
         print_alloc_info(NULL, real_size);
@@ -226,14 +226,17 @@ bool checkMemory(){
             if(free_chunk->next != NULL && (ULONG(free_chunk->next) < ULONG(memory) || ULONG(free_chunk->next) > ULONG(memory) + ULONG(MEMORY_SIZE)))
                 return false;                
             
-            check = (busy_block_t) (ULONG(check) + ULONG(free_chunk->size));
+            if(ULONG(check) + ULONG(free_chunk->size) < ULONG(memory) + ULONG(MEMORY_SIZE))
+                check = (busy_block_t) (ULONG(check) + ULONG(free_chunk->size));
+            else return true;
             free_chunk = free_chunk->next;
         }
-        // check busy block for correct size
-        if(check->size < 0 || check->size > MEMORY_SIZE)
-            return false;
-        
-        check = (busy_block_t) (ULONG(check + 1) + ULONG(check->size));
+        else{
+            // check busy block for correct size
+            if(check->size < 0 || check->size > MEMORY_SIZE)
+                return false;
+            check = (busy_block_t) (ULONG(check + 1) + ULONG(check->size));
+        }
     }
     return true;
 }
@@ -243,7 +246,7 @@ void memory_free(char *p){
     print_free_info(p);
 
     assert(checkMemory());
-
+    
     // first check  - if p address is within our memory
     if (p <= memory || p > memory + MEMORY_SIZE) {
         printf("Address out of bound\n");
@@ -440,7 +443,7 @@ int main(int argc, char **argv) {
 
     // test 3
     char *a = memory_alloc(20);
-
+    char *b;
     // test if allocator aborts if size in busy_block is <0
     // busy_block_t bug = (busy_block_t) a;
     // bug--;
@@ -454,7 +457,7 @@ int main(int argc, char **argv) {
     // bug2->size = MEMORY_SIZE+1;  // size in free block > memory size
     // bug2->next = ULONG(memory)+ULONG(MEMORY_SIZE+1);    // pointer to next free block is out of band
     // bug2->next = ULONG(memory - 1);     // pointer to next free block is out of band
-    memory_free(a);
+    memory_free(b);
 
     /*print_free_blocks();
     int i;
