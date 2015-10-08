@@ -9,13 +9,13 @@ char memory[MEMORY_SIZE];
 
 /* Structure declaration for a free block */
 typedef struct free_block{
-  int size;
-  struct free_block *next;
+    int size;
+    struct free_block *next;
 } free_block_s, *free_block_t;
 
 /* Structure declaration for an occupied block */
 typedef struct{
-  int size; 
+    int size; 
 } busy_block_s, *busy_block_t; 
 
 
@@ -26,34 +26,100 @@ free_block_t first_free;
 #define ULONG(x)((long unsigned int)(x))
 #define max(x,y) (x>y?x:y)
 
+#define STATISTICS_ON true
+
 // fragmentation statistics
-#define STATISTICS_SIZE 6000 // if we measure every 10 msec then it's enough for 10 minutes
-int mem_used[STATISTICS_SIZE];
+// TODO: add here some comments
+#ifdef STATISTICS_ON
+#define STATISTICS_SIZE 60000
+int mem_used[STATISTICS_SIZE]; // for storing used memory in different 
 int mem_requested[STATISTICS_SIZE];
-bool statistics_on = false;
+long unsigned int last_free_block_offset[STATISTICS_SIZE];
+busy_block_t greedy_blocks[MEMORY_SIZE / 500];
+int greedy_block_requested_size[MEMORY_SIZE / 500];
 int stat_counter;
+int greedy_block_counter;
 int cur_used, cur_requested;
 
 void statistics_init(void) {
-    statistics_on = true;
+    // do some statistics related initialization
     memset(mem_used, 0, STATISTICS_SIZE);
     memset(mem_requested, 0, STATISTICS_SIZE);
+    memset(last_free_block_offset, 0, STATISTICS_SIZE);
+    memset(greedy_blocks, 0, MEMORY_SIZE / 500);
+    memset(greedy_block_requested_size, 0, MEMORY_SIZE / 500);
     stat_counter = 0;
+    greedy_block_counter = 0;
+}
+
+long unsigned int get_last_free_block_offset(void) {
+    // finds the last free block and return amount of bytes between it and beginning of memory
+    free_block_t last_free = first_free;
+    free_block_t current;
+    for (current = first_free; current != NULL; current = current->next) {
+        if (current->next == NULL) {
+            last_free = current;
+        }
+    }
+    if (last_free == NULL) {
+        return ULONG(MEMORY_SIZE);
+    }
+    return ULONG(last_free) - ULONG(memory);
+}
+
+int how_much_was_requested(busy_block_t p) {
+    // if more than requested memory was allocated for p, we return this size
+    // if not, we return -1
+    int i;
+    for (i = 0; i < greedy_block_counter; ++i) {
+        if (greedy_blocks[i] == p) {
+            greedy_blocks[i] = NULL;
+            int size = greedy_block_requested_size[i];
+            greedy_block_requested_size[i] = 0;
+            return size;
+        }
+    }
+    return -1;
 }
 
 void fill_stat(void) {
-    if (statistics_on && stat_counter < STATISTICS_SIZE) {
+    if (stat_counter < STATISTICS_SIZE) {
         mem_used[stat_counter] = cur_used;
         mem_requested[stat_counter] = cur_requested;
+        last_free_block_offset[stat_counter] = get_last_free_block_offset();
         ++stat_counter;
     }
 }
+#endif
 
+void exit_function(void) {
+    // TODO: write a safety check here
+
+    // here we do a safety check and save statistics into a file (if it was turned on)
+#ifdef STATISTICS_ON
+    FILE *f = fopen("statistics.csv", "w");
+    if (f == NULL) {
+        fprintf(stderr, "Error opening file!\n");
+        return;
+    }
+    fprintf(f, "Memory used, Memory requested, End of busy blocks\n");
+    int i;
+    for (i = 0; i < stat_counter; ++i) {
+        fprintf(f, "%d, %d, %lu\n", mem_used[i], mem_requested[i], last_free_block_offset[i]);
+    }
+    fclose(f);
+#endif
+}
 
 void memory_init(void) {
     first_free = (free_block_t) memory;
     first_free->size = MEMORY_SIZE;
     first_free->next = NULL;
+#ifdef STATISTICS_ON
+    // now we want to have some statistics being saved
+    statistics_init();
+#endif
+    atexit(exit_function);
 }
 
 free_block_t find_first_fit(int size) {
@@ -203,11 +269,17 @@ char *memory_alloc(int requested_size) {
     char *addr = (new_busy != NULL ? (char*) ULONG(new_busy) + ULONG(sizeof(busy_block_s)) : NULL);
     print_alloc_info(addr, real_size);
 
-    if (statistics_on) {
-        cur_requested += requested_size;
-        cur_used += real_size;
-        // but we don't consider external fragmentation here (!)
+    // in case we collect statistics put some information in our variables
+#ifdef STATISTICS_ON
+    cur_requested += requested_size + sizeof(busy_block_s);
+    cur_used += real_size + sizeof(busy_block_s);
+    if (requested_size != real_size) {
+        greedy_blocks[greedy_block_counter] = (busy_block_t) addr - 1;
+        greedy_block_requested_size[greedy_block_counter] = requested_size + sizeof(busy_block_s);
+        greedy_block_counter++;
     }
+    fill_stat();
+#endif
 
     return addr;
 }
@@ -361,9 +433,17 @@ void memory_free(char *p){
 
     print_free_blocks();
 
-    if (statistics_on) {
-        // TODO: add smth here
+    // in case we collect statistics put some information in our variables
+#ifdef STATISTICS_ON
+    cur_used -= old_full_size;
+    int was_requested = how_much_was_requested(descriptor);
+    if (was_requested != -1) {
+        cur_requested -= was_requested;
+    } else {
+        cur_requested -= old_full_size;
     }
+    fill_stat();
+#endif
 }
 
 
@@ -439,7 +519,7 @@ int main(int argc, char **argv) {
     print_info(); 
 
     // test 3
-    char *a = memory_alloc(20);
+    // char *a = memory_alloc(20);
 
     // test if allocator aborts if size in busy_block is <0
     // busy_block_t bug = (busy_block_t) a;
@@ -454,9 +534,9 @@ int main(int argc, char **argv) {
     // bug2->size = MEMORY_SIZE+1;  // size in free block > memory size
     // bug2->next = ULONG(memory)+ULONG(MEMORY_SIZE+1);    // pointer to next free block is out of band
     // bug2->next = ULONG(memory - 1);     // pointer to next free block is out of band
-    memory_free(a);
+    // memory_free(a);
 
-    /*print_free_blocks();
+    print_free_blocks();
     int i;
     for( i = 0; i < 10; i++) {
         int size = rand() % 8 + 1;
@@ -474,7 +554,7 @@ int main(int argc, char **argv) {
     a = memory_alloc(10);
     memory_free(a);
 
-    printf("%lu\n",(long unsigned int) (memory_alloc(9)));*/
+    printf("%lu\n",(long unsigned int) (memory_alloc(9)));
     return EXIT_SUCCESS;
 }
 #endif 
